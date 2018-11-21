@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=utf-8>
+    <title>My first three.js app</title>
+    <style>
+        body { margin: 0; }
+        canvas { width: 100%; height: 100% }
+    </style>
+</head>
+<body>
+<div>
+    <button id="export_scene">Export Scene1</button>
+    <button id="generate_thumbnail" onclick="shot()">capture this moment generate thumbnail</button>
+    <input type="file" id="file" accept="*.glb">
+</div>
+<script src="static/js/three.js"></script>
+
+<script src="static/js/libs/inflate.min.js"></script>
+
+<script src="static/js/loaders/FBXLoader.js"></script>
+<script src="static/js/loaders/ColladaLoader.js"></script>
+<script src="static/js/loaders/OBJLoader.js"></script>
+<script src="static/js/loaders/GLTFLoader.js"></script>
+
+<script src="static/js/controls/OrbitControls.js"></script>
+
+<script src="static/js/WebGL.js"></script>
+<script src="static/js/libs/stats.min.js"></script>
+<script>
+
+    if (WEBGL.isWebGLAvailable() === false) {
+        document.body.appendChild(WEBGL.getWebGLErrorMessage());
+    }
+    var container, stats, controls;
+    var camera, scene, renderer, light;
+    var clock = new THREE.Clock();
+    var mixers = [];
+    // init();
+    var inp = document.querySelector('#file');
+    inp.onchange=function () {
+        console.log('change');
+        var file = inp.files[0];
+        console.log(URL.createObjectURL(file));
+        init(URL.createObjectURL(file));
+        animate();
+    }
+
+    function init(url) {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 20000);
+        camera.position.set(100, 200, 300);
+        controls = new THREE.OrbitControls(camera);
+        controls.target.set(0, 100, 0);
+        controls.update();
+        scene = new THREE.Scene();
+        scene = new THREE.Scene();
+        // envmap
+        var path = 'textures/cube/Bridge2/';
+        var format = '.jpg';
+        var envMap = new THREE.CubeTextureLoader().load( [
+            path + 'posx' + format, path + 'negx' + format,
+            path + 'posy' + format, path + 'negy' + format,
+            path + 'posz' + format, path + 'negz' + format
+        ] );
+        //
+        scene.background = envMap;
+        light = new THREE.HemisphereLight(0xffffff, 0x444444);
+        light.position.set(0, 200, 0);
+        scene.add(light);
+        light = new THREE.DirectionalLight(0xffffff);
+        light.position.set(0, 200, 100);
+        light.castShadow = true;
+        light.shadow.camera.top = 180;
+        light.shadow.camera.bottom = -100;
+        light.shadow.camera.left = -120;
+        light.shadow.camera.right = 120;
+        scene.add(light);
+
+
+
+        //fbx loader----------------------------------------------------------
+        var loader = new THREE.FBXLoader();
+        loader.load( url, function ( object ) {
+            object.mixer = new THREE.AnimationMixer( object );
+            mixers.push( object.mixer );
+            var action = object.mixer.clipAction( object.animations[ 0 ] );
+            action.play();
+            object.traverse( function ( child ) {
+                if ( child.isMesh ) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            } );
+            scene.add( object );
+        } );
+        // //-----------------------------------------------------------------
+        // collada loader--------------------------------------------------------
+        // var loadingManager = new THREE.LoadingManager( function () {
+        //     scene.add( elf );
+        // } );
+        // // collada
+        // var loader = new THREE.ColladaLoader( loadingManager );
+        // loader.load( url, function ( collada ) {
+        //     elf = collada.scene;
+        // } );
+        //------------------------------------------------------------------------
+        //obj loader-------------------------------------------------------------
+        // function loadModel() {
+        //     object.traverse(function (child) {
+        //         if (child.isMesh) child.material.map = texture;
+        //     });
+        //     object.position.y = -95;
+        //     scene.add(object);
+        // }
+        //
+        // var manager = new THREE.LoadingManager(loadModel);
+        // manager.onProgress = function (item, loaded, total) {
+        //     console.log(item, loaded, total);
+        // };
+        //
+        // var textureLoader = new THREE.TextureLoader(manager);
+        // var texture = textureLoader.load('textures/UV_Grid_Sm.jpg');
+        //
+        // function onProgress(xhr) {
+        //     if (xhr.lengthComputable) {
+        //         var percentComplete = xhr.loaded / xhr.total * 100;
+        //         console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
+        //     }
+        // }
+        //
+        // function onError() {
+        // }
+        //
+        // var loader = new THREE.OBJLoader(manager);
+        // loader.load(url, function (obj) {
+        //     object = obj;
+        // }, onProgress, onError);
+        //--------------------------------------------------------------------------
+        //gltf loader------------------------------------------------------------
+        // var loader = new THREE.GLTFLoader();
+        // loader.load( url, function ( gltf ) {
+        //     gltf.scene.traverse( function ( child ) {
+        //         if ( child.isMesh ) {
+        //             child.material.envMap = envMap;
+        //         }
+        //     } );
+        //     scene.add( gltf.scene );
+        // }, undefined, function ( e ) {
+        //     console.error( e );
+        // } );
+        //--------------------------------------------------------------------------
+
+        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+        window.addEventListener('resize', onWindowResize, false);
+
+        stats = new Stats();
+        container.appendChild(stats.dom);
+    }
+
+    function exportGLTF(input) {
+        var gltfExporter = new THREE.GLTFExporter();
+        var options = {
+            trs: false,
+            onlyVisible: true,
+            truncateDrawRange: false,
+            binary: true,
+            forceIndices: true,
+            forcePowerOfTwoTextures: true,
+        };
+        gltfExporter.parse(input, function (result) {
+            if (result instanceof ArrayBuffer) {
+                saveArrayBuffer(result, 'scene.glb');
+            } else {
+                var output = JSON.stringify(result, null, 2);
+                console.log(output);
+                saveString(output, 'scene.gltf');
+            }
+        }, options);
+    }
+
+    document.getElementById('export_scene').addEventListener('click', function () {
+        exportGLTF(scene);
+    });
+
+    var link = document.createElement('a');
+    link.style.display = 'none';
+    document.body.appendChild(link); // Firefox workaround, see #6594
+    function save(blob, filename) {
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        // URL.revokeObjectURL( url ); breaks Firefox...
+    }
+
+    function saveString(text, filename) {
+        save(new Blob([text], {type: 'text/plain'}), filename);
+    }
+
+    function saveArrayBuffer(buffer, filename) {
+        save(new Blob([buffer], {type: 'application/octet-stream'}), filename);
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (mixers.length > 0) {
+            for (var i = 0; i < mixers.length; i++) {
+                mixers[i].update(clock.getDelta());
+            }
+        }
+        renderer.render(scene, camera);
+        stats.update();
+    }
+
+    function shot(){
+        var image = new Image();
+        renderer.render(scene, camera);//此处renderer为three.js里的渲染器，scene为场景 camera为相机
+
+        var imgData = renderer.domElement.toDataURL("image/jpeg");//这里可以选择png格式jpeg格式
+        image.src = imgData;
+        document.body.appendChild(image);//这样就可以查看截出来的图片了
+    }
+
+</script>
+</body>
+</html>
