@@ -138,7 +138,7 @@ $(function () {
                 }
             })
             CountVertices(gltf.scene);
-            CountTriangles(gltf.scene);
+            // CountTriangles(gltf.scene);
             var size = new THREE.Box3().setFromObject(gltf.scene).getSize() // Returns Vector3
             gltf.scene.scale.set(1 / size.x, 1 / size.x, 1 / size.x);
             gltf.scene.position.y += new THREE.Box3().setFromObject(gltf.scene).getSize().y * 0.5;
