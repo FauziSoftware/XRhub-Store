@@ -25,9 +25,8 @@ $(function () {
         document.body.appendChild(WEBGL.getWebGLErrorMessage());
     }
     var container, stats, controls;
-    var camera, scene, renderer, light,envMap;
-    var vertices=0;
-     var   triangles=0;
+    var camera, scene, renderer, light, envMap, exportObject;
+    var vertices, triangles;
     var clock = new THREE.Clock();
     var mixers = [];
     initScene();
@@ -54,6 +53,9 @@ $(function () {
         camera = new THREE.PerspectiveCamera(60, 1, 0.01, 1000);
         camera.position.set(2.5, 2.5, 2.5);
         scene = new THREE.Scene();
+        exportObject = new THREE.Object3D();
+        vertices = 0;
+        triangles = 0;
         // envmap
         var path = '/static/textures/cube/Bridge2/';
         var format = '.jpg';
@@ -64,26 +66,28 @@ $(function () {
         ]);
         //
         scene.background = envMap;
-        light = new THREE.HemisphereLight(0xffffff, 0x444444);
+        light = new THREE.HemisphereLight(0xffffff, 0xffffff);
         light.position.set(0, 200, 0);
-        scene.add(light);
         light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, 200, 100);
         light.castShadow = true;
-        light.shadow.camera.top = 180;
-        light.shadow.camera.bottom = -100;
-        light.shadow.camera.left = -120;
-        light.shadow.camera.right = 120;
+        // light.shadow.camera.top = 180;
+        // light.shadow.camera.bottom = -100;
+        // light.shadow.camera.left = -120;
+        // light.shadow.camera.right = 120;
         scene.add(light);
 
-        var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
-        mesh.rotation.x = - Math.PI / 2;
+        var mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2000, 2000), new THREE.MeshPhongMaterial({
+            color: 0x999999,
+            depthWrite: false
+        }));
+        mesh.rotation.x = -Math.PI / 2;
         mesh.receiveShadow = true;
-        scene.add( mesh );
-        var grid = new THREE.GridHelper( 10, 20, 0x000000, 0x000000 );
+        scene.add(mesh);
+        var grid = new THREE.GridHelper(10, 20, 0x000000, 0x000000);
         grid.material.opacity = 0.2;
         grid.material.transparent = true;
-        scene.add( grid );
+        scene.add(grid);
 
         var wd = $('.photo-box').width();
 
@@ -97,7 +101,7 @@ $(function () {
         stats = new Stats();
         container.appendChild(stats.dom);
 
-        controls = new THREE.OrbitControls(camera,renderer.domElement);
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 0, 0);
         controls.update();
     }
@@ -113,111 +117,117 @@ $(function () {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-
-                    vertices += child.geometry.vertices.length;
-                    triangles += child.geometry.triangles.length;
+                    child.material.envmap = envMap;
                 }
             });
             var size = new THREE.Box3().setFromObject(object).getSize();
-            object.scale.set( 1/size.x, 1/size.x, 1/size.x );
+            object.scale.set(1 / size.x, 1 / size.x, 1 / size.x);
             object.position.y += new THREE.Box3().setFromObject(object).getSize().y * 0.5;
-            scene.add(object);
+            exportObject.add(object);
             CountVertices();
+            scene.add(object);
         });
     }
 
     function glbLoader(url) {
         var loader = new THREE.GLTFLoader();
-        loader.load( url, function ( gltf ) {
-            gltf.scene.traverse( function ( child ) {
-                if ( child.isMesh ) {
-                    alert(child.geometry.triangles);
-                    alert(vertices);
-                    alert(triangles);
+        loader.load(url, function (gltf) {
+            gltf.scene.traverse(function (child) {
+                if (child.isMesh) {
+                    child.material.envmap = envMap;
                 }
-            } );
+            })
+            CountVertices(gltf.scene);
+            CountTriangles(gltf.scene);
             var size = new THREE.Box3().setFromObject(gltf.scene).getSize() // Returns Vector3
-            gltf.scene.scale.set( 1/size.x, 1/size.x, 1/size.x );
+            gltf.scene.scale.set(1 / size.x, 1 / size.x, 1 / size.x);
             gltf.scene.position.y += new THREE.Box3().setFromObject(gltf.scene).getSize().y * 0.5;
-            scene.add( gltf.scene );
-            // CountVertices();
-        }, undefined, function ( e ) {
-            console.error( e );
-        } );
+            exportObject.add(gltf.scene);
+            scene.add(gltf.scene);
+        }, undefined, function (e) {
+            console.error(e);
+        });
     }
-    
-    function CountVertices() {
-        scene.children.traverse(function (child) {
-            if(child.isMesh){
-                console.log(child.name);
+
+    function CountVertices(input) {
+        input.traverse(function (child) {
+            if (child.isMesh) {
+                child.material.envmap = envMap;
+                if (child.geometry.isBufferGeometry) {
+                    var count = child.geometry.attributes.position.length;
+                    vertices += count;
+                } else {
+                    var count = child.geometry.vertices.length;
+                    vertices += count;
+                }
             }
         })
     }
 
     // function colladaLoader(url) {
-        // var loadingManager = new THREE.LoadingManager( function () {
-        //     scene.add( elf );
-        // } );
-        // // collada
-        // var loader = new THREE.ColladaLoader( loadingManager );
-        // loader.load( url, function ( collada ) {
-        //     elf = collada.scene;
-        // } );
+    // var loadingManager = new THREE.LoadingManager( function () {
+    //     scene.add( elf );
+    // } );
+    // // collada
+    // var loader = new THREE.ColladaLoader( loadingManager );
+    // loader.load( url, function ( collada ) {
+    //     elf = collada.scene;
+    // } );
     // }
 
     // function objLoader(url) {
-        // function loadModel() {
-        //     object.traverse(function (child) {
-        //         if (child.isMesh) child.material.map = texture;
-        //     });
-        //     object.position.y = -95;
-        //     scene.add(object);
-        // }
-        //
-        // var manager = new THREE.LoadingManager(loadModel);
-        // manager.onProgress = function (item, loaded, total) {
-        //     console.log(item, loaded, total);
-        // };
-        //
-        // var textureLoader = new THREE.TextureLoader(manager);
-        // var texture = textureLoader.load('textures/UV_Grid_Sm.jpg');
-        //
-        // function onProgress(xhr) {
-        //     if (xhr.lengthComputable) {
-        //         var percentComplete = xhr.loaded / xhr.total * 100;
-        //         console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
-        //     }
-        // }
-        //
-        // function onError() {
-        // }
-        //
-        // var loader = new THREE.OBJLoader(manager);
-        // loader.load(url, function (obj) {
-        //     object = obj;
-        // }, onProgress, onError);
+    // function loadModel() {
+    //     object.traverse(function (child) {
+    //         if (child.isMesh) child.material.map = texture;
+    //     });
+    //     object.position.y = -95;
+    //     scene.add(object);
+    // }
+    //
+    // var manager = new THREE.LoadingManager(loadModel);
+    // manager.onProgress = function (item, loaded, total) {
+    //     console.log(item, loaded, total);
+    // };
+    //
+    // var textureLoader = new THREE.TextureLoader(manager);
+    // var texture = textureLoader.load('textures/UV_Grid_Sm.jpg');
+    //
+    // function onProgress(xhr) {
+    //     if (xhr.lengthComputable) {
+    //         var percentComplete = xhr.loaded / xhr.total * 100;
+    //         console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
+    //     }
+    // }
+    //
+    // function onError() {
+    // }
+    //
+    // var loader = new THREE.OBJLoader(manager);
+    // loader.load(url, function (obj) {
+    //     object = obj;
+    // }, onProgress, onError);
     // }
 
-    // function exportGLTF(input) {
-    //     var gltfExporter = new THREE.GLTFExporter();
-    //     var options = {
-    //         trs: false,
-    //         onlyVisible: true,
-    //         truncateDrawRange: false,
-    //         binary: true,
-    //         forceIndices: true,
-    //         forcePowerOfTwoTextures: true,
-    //     };
-    //     gltfExporter.parse(input, function (result) {
-    //         if (result instanceof ArrayBuffer) {
-    //             saveArrayBuffer(result, 'scene.glb');
-    //         } else {
-    //             var output = JSON.stringify(result, null, 2);
-    //             console.log(output);
-    //             saveString(output, 'scene.gltf');
-    //         }
-    //     }, options);
-    // }
+    function exportGLTF(input) {
+        var gltfExporter = new THREE.GLTFExporter();
+        var options = {
+            trs: false,
+            onlyVisible: true,
+            truncateDrawRange: false,
+            binary: true,
+            forceIndices: true,
+            forcePowerOfTwoTextures: true,
+        };
+        gltfExporter.parse(input, function (result) {
+            if (result instanceof ArrayBuffer) {
+                saveArrayBuffer(result, 'scene.glb');
+            } else {
+                var output = JSON.stringify(result, null, 2);
+                console.log(output);
+                saveString(output, 'scene.gltf');
+            }
+        }, options);
+    }
 
     function saveString(text, filename) {
         save(new Blob([text], {type: 'text/plain'}), filename);
@@ -411,7 +421,7 @@ $(function () {
         var rawLength = raw.length;
         var array = new Uint8Array(new ArrayBuffer(rawLength));
 
-        for(i = 0; i < rawLength; i++) {
+        for (i = 0; i < rawLength; i++) {
             array[i] = raw.charCodeAt(i);
         }
         return array;
