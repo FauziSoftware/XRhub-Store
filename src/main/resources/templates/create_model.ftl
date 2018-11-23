@@ -93,6 +93,7 @@
 <script src="../static/js/loaders/GLTFLoader.js"></script>
 
 <script src="../static/js/controls/OrbitControls.js"></script>
+<script src="../static/js/exporters/GLTFExporter.js"></script>
 
 <script src="../static/js/WebGL.js"></script>
 <script src="../static/js/libs/stats.min.js"></script>

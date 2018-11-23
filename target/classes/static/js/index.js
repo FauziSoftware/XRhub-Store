@@ -26,6 +26,8 @@ $(function () {
     }
     var container, stats, controls;
     var camera, scene, renderer, light,envMap;
+    var vertices=0;
+     var   triangles=0;
     var clock = new THREE.Clock();
     var mixers = [];
     initScene();
@@ -49,11 +51,8 @@ $(function () {
 
     function initScene() {
         container = document.getElementById('canvas');
-        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
+        camera = new THREE.PerspectiveCamera(60, 1, 0.01, 1000);
         camera.position.set(2.5, 2.5, 2.5);
-        controls = new THREE.OrbitControls(camera);
-        controls.target.set(0, 0, 0);
-        controls.update();
         scene = new THREE.Scene();
         // envmap
         var path = '/static/textures/cube/Bridge2/';
@@ -86,15 +85,21 @@ $(function () {
         grid.material.transparent = true;
         scene.add( grid );
 
+        var wd = $('.photo-box').width();
+
         renderer = new THREE.WebGLRenderer({antialias: true});
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(500, 350);
+        renderer.setSize(wd, wd * 9 / 16);
         renderer.shadowMap.enabled = true;
         container.appendChild(renderer.domElement);
         window.addEventListener('resize', onWindowResize, false);
 
         stats = new Stats();
         container.appendChild(stats.dom);
+
+        controls = new THREE.OrbitControls(camera,renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.update();
     }
 
     function fbxLoader(url) {
@@ -108,12 +113,16 @@ $(function () {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
+
+                    vertices += child.geometry.vertices.length;
+                    triangles += child.geometry.triangles.length;
                 }
             });
             var size = new THREE.Box3().setFromObject(object).getSize();
             object.scale.set( 1/size.x, 1/size.x, 1/size.x );
             object.position.y += new THREE.Box3().setFromObject(object).getSize().y * 0.5;
             scene.add(object);
+            CountVertices();
         });
     }
 
@@ -122,13 +131,16 @@ $(function () {
         loader.load( url, function ( gltf ) {
             gltf.scene.traverse( function ( child ) {
                 if ( child.isMesh ) {
-                    child.material.envMap = envMap;
+                    alert(child.geometry.triangles);
+                    alert(vertices);
+                    alert(triangles);
                 }
             } );
             var size = new THREE.Box3().setFromObject(gltf.scene).getSize() // Returns Vector3
             gltf.scene.scale.set( 1/size.x, 1/size.x, 1/size.x );
             gltf.scene.position.y += new THREE.Box3().setFromObject(gltf.scene).getSize().y * 0.5;
             scene.add( gltf.scene );
+            // CountVertices();
         }, undefined, function ( e ) {
             console.error( e );
         } );
@@ -216,9 +228,10 @@ $(function () {
     }
 
     function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        var wd = $('.photo-box').width();
+        camera.aspect = 1;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(wd, wd * 9 / 16);
     }
 
     function animate() {
@@ -357,18 +370,18 @@ $(function () {
             forceIndices: true,
             forcePowerOfTwoTextures: true,
         };
-        gltfExporter.parse(input, function (result) {
+        gltfExporter.parse(scene, function (result) {
             if (result instanceof ArrayBuffer) {
-                saveArrayBuffer(result, 'scene.glb');
-                final = new Blob(result);
+                // saveArrayBuffer(result, 'scene.glb');
+                final = new Blob([result]);
+                callback ? callback(final) : null;
             } else {
-                var output = JSON.stringify(result, null, 2);
-                console.log(output);
-                saveString(output, 'scene.gltf');
+                // var output = JSON.stringify(result, null, 2);
+                // console.log(output);
+                // saveString(output, 'scene.gltf');
             }
         }, options);
 
-        callback ? callback(final) : null;
     }
 
     /**
@@ -381,9 +394,27 @@ $(function () {
         var image = new Image();
         renderer.render(scene, camera);//此处renderer为three.js里的渲染器，scene为场景 camera为相机
         var imgData = renderer.domElement.toDataURL("image/jpeg");//这里可以选择png格式jpeg格式
-        file = new Blob(image.arrayBuffer);
+
+        var binArr = convertDataURIToBinary(imgData);
+
+        file = new File([binArr], 'img.png', {type: 'image/png'});
 
         callback ? callback(file) : null;
+    }
+
+    var BASE64_MARKER = ';base64,';
+
+    function convertDataURIToBinary(dataURI) {
+        var base64Index = dataURI.indexOf(BASE64_MARKER) + BASE64_MARKER.length;
+        var base64 = dataURI.substring(base64Index);
+        var raw = window.atob(base64);
+        var rawLength = raw.length;
+        var array = new Uint8Array(new ArrayBuffer(rawLength));
+
+        for(i = 0; i < rawLength; i++) {
+            array[i] = raw.charCodeAt(i);
+        }
+        return array;
     }
 });
 
